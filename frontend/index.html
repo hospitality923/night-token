@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>房晚数字资产管理平台</title>
+    <style>
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f8f9fa; color: #2d3748; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #edf2f7; }
+        h1, h2, h3 { color: #2b6cb0; margin-top: 0; }
+        input, select { width: 100%; padding: 10px; margin: 5px 0 15px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; }
+        .row { display: flex; gap: 15px; align-items:flex-start; }
+        .col { flex: 1; }
+        button { background: #3182ce; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+        .btn-green { background: #48bb78; }
+        .btn-red { background: #f56565; }
+        .btn-orange { background: #ed8936; }
+        .hidden { display: none !important; }
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; background: #ebf8ff; color: #2b6cb0; }
+        
+        .log-box { background: #1a202c; color: #68d391; font-family: monospace; padding: 15px; border-radius: 8px; font-size: 12px; max-height: 200px; overflow-y: auto; }
+        .status-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+        .status-table th { text-align: left; border-bottom: 2px solid #e2e8f0; padding: 8px; color: #718096; }
+        .status-table td { border-bottom: 1px solid #edf2f7; padding: 8px; }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+        .modal-box { background: white; width: 400px; padding: 30px; border-radius: 12px; text-align: center; }
+        .progress-bar { height: 4px; background: #edf2f7; width: 100%; margin: 20px 0; border-radius: 2px; }
+        .progress-fill { height: 100%; background: #48bb78; width: 0%; transition: width 0.5s; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <h1>酒店房晚数字资产管理平台 <span style="font-size:14px; color:#718096;">(v3.2 Pilot)</span></h1>
+            <div style="font-size:13px; color:#718096;">B2B 数字化分销与托管解决方案</div>
+        </div>
+        <div style="text-align:right;">
+            <div id="userInfo" class="hidden">
+                <div id="userEmail" style="font-weight:bold;"></div>
+                <div id="userRole" class="badge"></div>
+                <div style="font-size:11px; font-family:monospace; margin-top:5px;" id="userAddr"></div>
+                <button onclick="logout()" class="btn-red" style="width:auto; padding:4px 10px; font-size:12px; margin-top:5px;">退出</button>
+            </div>
+            <select id="langSwitcher" style="width:auto; margin:0;" onchange="updateLang()">
+                <option value="zh">简体中文</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="authView" class="card">
+        <h3>系统登录</h3>
+        <input type="email" id="email" placeholder="电子邮箱">
+        <input type="password" id="password" placeholder="密码">
+        <select id="role">
+            <option value="hotel">酒店方 (资产发行方)</option>
+            <option value="ta">旅行社 (分销商)</option>
+        </select>
+        <div class="row">
+            <button id="btn_login" onclick="login()">登录</button>
+            <button onclick="register()" style="background:#edf2f7; color:#4a5568;">注册</button>
+        </div>
+    </div>
+
+    <div id="hotelView" class="hidden">
+        <div class="card">
+            <h3>1. 定义资产库存 (黑盒发行)</h3>
+            <div class="row">
+                <input type="text" id="h_id" placeholder="酒店代码 (如: SH-ILTON)" class="col">
+                <input type="text" id="h_name" placeholder="房型名称 (如: 总统套房)" class="col">
+            </div>
+            <div class="row">
+                <input type="number" id="h_supply" placeholder="总发行量 (黑盒数据)" class="col">
+                <select id="h_dayType" class="col">
+                    <option value="WEEKDAY">平日 (Weekday)</option>
+                    <option value="WEEKEND">周末 (Weekend)</option>
+                </select>
+            </div>
+            <div class="row">
+                <div class="col">
+                    <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">不适用日期 (Start)</label>
+                    <input type="date" id="h_blackout_start" style="margin:0;">
+                </div>
+                <div class="col">
+                    <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">至 (End)</label>
+                    <input type="date" id="h_blackout_end" style="margin:0;">
+                </div>
+                <div class="col">
+                    <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">&nbsp;</label>
+                    <input type="number" id="h_cap" placeholder="公开额度" style="margin:0;">
+                </div>
+            </div>
+            <br>
+            <button id="btn_create_inv" onclick="createInventory()">发行资产凭证</button>
+        </div>
+
+        <div class="card">
+            <h3>我的库存清单 (Current Inventory)</h3>
+            <table class="status-table">
+                <thead><tr><th>Token ID</th><th>房型名称</th><th>总发行量</th><th>已售/流转</th><th>已核销</th></tr></thead>
+                <tbody id="hotelInventoryList"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>2. 托管分销 (一级市场)</h3>
+            <p style="font-size:12px; color:#666;">流程: 存入托管 -> 等待付款 -> 确认释放</p>
+            <div class="row">
+                <input type="number" id="dist_id" placeholder="凭证 ID" class="col">
+                <input type="text" id="dist_buyer" placeholder="分销商邮箱 (TA1)" class="col">
+                <input type="number" id="dist_amt" placeholder="数量" class="col">
+            </div>
+            <button id="btn_escrow_hotel" onclick="createEscrow('hotel')" class="btn-green">发起托管 (存入资产)</button>
+
+            <h4>待确认收款 (Pending Payments)</h4>
+            <button onclick="refreshState()" style="width:auto; padding:2px 8px; font-size:11px; margin-bottom:5px;">刷新列表</button>
+            <table class="status-table">
+                <thead><tr><th>单号</th><th>买家</th><th>数量</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="hotelTradeList"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>3. 入住管理 (核销确认)</h3>
+            <table class="status-table">
+                <thead><tr><th>单号</th><th>住客</th><th>日期</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="hotelBookingList"></tbody>
+            </table>
+        </div>
+
+        <div class="card" style="border:1px solid #fc8181; background:#fff5f5;">
+            <h3 style="color:#c53030;">⚠️ 演示系统重置 (Admin Zone)</h3>
+            <p style="font-size:12px; color:#c53030;">点击此按钮将清空所有用户、交易和库存数据。请仅在演示结束后使用。</p>
+            <button class="btn-red" onclick="resetSystem()">重置所有数据 (Wipe All)</button>
+        </div>
+    </div>
+
+    <div id="taView" class="hidden">
+        <div class="card">
+            <h3>我的资产操作</h3>
+            <div class="row">
+                <button onclick="refreshState()" class="btn-orange">刷新数据</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>我的资产清单 (My Inventory)</h3>
+            <table class="status-table">
+                <thead><tr><th>Token ID</th><th>房型名称</th><th>持有数量</th><th>已核销 (入住)</th></tr></thead>
+                <tbody id="taInventoryList"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>二级分销 (转售)</h3>
+            <div class="row">
+                <input type="number" id="ta_sell_id" placeholder="凭证 ID" class="col">
+                <input type="text" id="ta_sell_buyer" placeholder="买家邮箱 (TA2)" class="col">
+                <input type="number" id="ta_sell_amt" placeholder="数量" class="col">
+            </div>
+            <button id="btn_hw_trigger" onclick="triggerHwCheck()">发起资产转让 (需硬件签名)</button>
+
+            <h4>我的销售订单 (待收款)</h4>
+            <table class="status-table">
+                <thead><tr><th>单号</th><th>买家</th><th>数量</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="taTradeList"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>房晚核销 (预订)</h3>
+            <div class="row">
+                <input type="number" id="ta_book_id" placeholder="凭证 ID" class="col">
+                <input type="date" id="ta_book_date" class="col">
+                <input type="text" id="ta_book_guest" placeholder="住客姓名" class="col">
+            </div>
+            <button id="btn_book" onclick="requestBooking()" class="btn-green">提交预订 (存入核销托管)</button>
+
+            <h4>我的预订记录</h4>
+            <table class="status-table">
+                <thead><tr><th>单号</th><th>日期</th><th>住客</th><th>状态</th></tr></thead>
+                <tbody id="taBookingList"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="logs" class="log-box hidden"><div>> 系统就绪...</div></div>
+
+    <div id="hwModal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div style="font-size:40px;">🔐</div>
+            <h3>安全风控检查</h3>
+            <p>大额资产调拨需要硬件密钥 (USB Key) 签名</p>
+            <div id="hwStatus" style="font-weight:bold; color:#e53e3e; margin:10px 0;">请插入硬件密钥...</div>
+            <div class="progress-bar"><div id="hwProgress" class="progress-fill"></div></div>
+            <button id="hwBtn" onclick="simulateHwSign()">模拟插入密钥</button>
+            <button onclick="document.getElementById('hwModal').classList.add('hidden')" style="background:#ccc; margin-top:10px;">取消</button>
+        </div>
+    </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

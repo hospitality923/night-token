@@ -1,0 +1,11 @@
+root@hospitality1:/home/night-token/smart-contracts# npx hardhat run scripts/deploy.js --network amoy
+Deploying contracts with the account: 0x7392C805d955110edfB83F8569FD540d7197270B
+RoomNightToken deployed to: 0xb7844D97c40DDd2AF0e1dec3aFf336141E287629
+TokenEscrow deployed to: 0xAB838D2f9B4529d83F9d25928367F3495F372adC
+BookingManager deployed to: 0x18C1aC0917ACf25a10Dcc8A00A03b48f8bC06597
+
+--- CONFIGURATION FOR APP.JS ---
+let TOKEN_ADDRESS = "0xb7844D97c40DDd2AF0e1dec3aFf336141E287629";
+let ESCROW_ADDRESS = "0xAB838D2f9B4529d83F9d25928367F3495F372adC";
+let BOOKING_MANAGER_ADDRESS = "0x18C1aC0917ACf25a10Dcc8A00A03b48f8bC06597";
+

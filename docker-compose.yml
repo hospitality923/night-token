@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET}
+      - SERVER_PRIVATE_KEY=${SERVER_PRIVATE_KEY}
+      - ADMIN_PRIVATE_KEY=${ADMIN_PRIVATE_KEY} # Ensure this is passed
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=${DATABASE_URL}
+      - ALCHEMY_API_URL=${ALCHEMY_API_URL}
+      - ROOM_NIGHT_TOKEN_ADDRESS=${ROOM_NIGHT_TOKEN_ADDRESS}
+      - TOKEN_ESCROW_ADDRESS=${TOKEN_ESCROW_ADDRESS}
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules # <--- CRITICAL FIX: Anonymous volume to prevent overwriting
+    networks:
+      - default
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    networks:
+      - default
+
+  listener:
+    build: ./listener
+    environment:
+      - ALCHEMY_API_URL=${ALCHEMY_API_URL}
+      - ROOM_NIGHT_TOKEN_ADDRESS=${ROOM_NIGHT_TOKEN_ADDRESS}
+      - BOOKING_MANAGER_ADDRESS=${BOOKING_MANAGER_ADDRESS}
+    volumes:
+      - ./listener:/usr/src/app
+      - /usr/src/app/node_modules # <--- Good practice to add here too
+    networks:
+      - default
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - default
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    driver: bridge
