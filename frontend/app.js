@@ -41,6 +41,28 @@ function log(msg, txHash = null) {
     box.prepend(div);
 }
 
+// --- BOOKING CALCULATION ---
+function calculateCost() {
+    const inDate = document.getElementById('ta_book_checkin').value;
+    const outDate = document.getElementById('ta_book_checkout').value;
+    const rooms = document.getElementById('ta_book_rooms').value;
+    const res = document.getElementById('calcResult');
+    
+    if(inDate && outDate && rooms) {
+        const start = new Date(inDate);
+        const end = new Date(outDate);
+        const diffTime = Math.abs(end - start);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        if(diffDays > 0) {
+            const total = diffDays * rooms;
+            res.innerText = `预计消耗: ${total} Token (${diffDays}晚 x ${rooms}间)`;
+            return;
+        }
+    }
+    res.innerText = "预计消耗: 0 Token";
+}
+
 // --- SYSTEM RESET ---
 async function resetSystem() {
     if (!confirm("⚠️ 严重警告 ⚠️\n\n确定要清空所有数据吗？\n这将删除所有用户、库存和交易记录，且无法恢复！")) return;
@@ -106,15 +128,27 @@ function setupDashboard() {
     document.getElementById('authView').classList.add('hidden');
     document.getElementById('userInfo').classList.remove('hidden');
     document.getElementById('userEmail').innerText = currentUser.email;
-    document.getElementById('userRole').innerText = currentUser.role === 'hotel' ? "酒店方" : "旅行社";
+    
+    let roleName = "未知";
+    if (currentUser.role === 'hotel') roleName = "酒店方";
+    if (currentUser.role === 'ta') roleName = "旅行社";
+    if (currentUser.role === 'admin') roleName = "平台管理方";
+    document.getElementById('userRole').innerText = roleName;
+
     document.getElementById('userAddr').innerText = currentUser.wallet_address || "Loading...";
     
+    // Hide all first
+    document.getElementById('hotelView').classList.add('hidden');
+    document.getElementById('taView').classList.add('hidden');
+    document.getElementById('adminView').classList.add('hidden');
+
+    // Show specific
     if(currentUser.role === 'hotel') {
         document.getElementById('hotelView').classList.remove('hidden');
-        document.getElementById('taView').classList.add('hidden');
-    } else {
+    } else if (currentUser.role === 'ta') {
         document.getElementById('taView').classList.remove('hidden');
-        document.getElementById('hotelView').classList.add('hidden');
+    } else if (currentUser.role === 'admin') {
+        document.getElementById('adminView').classList.remove('hidden');
     }
     refreshState();
 }
@@ -125,37 +159,36 @@ async function refreshState() {
         const res = await fetch(`${API_URL}/api/state`, { headers: {'Authorization': token} });
         if(handleAuthError(res)) return;
         
-        // [MODIFIED] Now receiving inventory
         const { trades, bookings, inventory } = await res.json();
         
         if (currentUser.role === 'hotel') {
             renderHotelInventory(inventory || [], trades || [], bookings || []);
             renderTrades(trades || []);
             renderBookings(bookings || []);
-        } else {
+        } else if (currentUser.role === 'ta') {
             renderTAInventory(inventory || [], trades || [], bookings || []);
             renderTrades(trades || []);
             renderBookings(bookings || []);
+        } else if (currentUser.role === 'admin') {
+            renderHotelInventory(inventory || [], trades || [], bookings || [], 'adminInventoryList');
+            renderTrades(trades || []);
         }
     } catch(e) { console.error(e); }
 }
 
-// [ADDED] Render Hotel Inventory Summary
-function renderHotelInventory(inventory, trades, bookings) {
-    const tbody = document.getElementById('hotelInventoryList');
+function renderHotelInventory(inventory, trades, bookings, targetId = 'hotelInventoryList') {
+    const tbody = document.getElementById(targetId);
     if (!tbody) return;
     tbody.innerHTML = '';
     
     inventory.forEach(item => {
-        // Calculate Sold (Total in trades)
         const soldCount = trades
             .filter(t => t.tokenId == item.token_id && t.status === 'RELEASED')
             .reduce((sum, t) => sum + parseInt(t.amount), 0);
             
-        // Calculate Redeemed (Total bookings completed/confirmed)
         const redeemedCount = bookings
             .filter(b => b.tokenId == item.token_id && b.status === 'COMPLETED')
-            .length;
+            .reduce((sum, b) => sum + parseInt(b.amount || 1), 0); // Sum amount not just count
             
         tbody.innerHTML += `
             <tr>
@@ -169,16 +202,13 @@ function renderHotelInventory(inventory, trades, bookings) {
     });
 }
 
-// [ADDED] Render TA Inventory Summary
 function renderTAInventory(inventory, trades, bookings) {
     const tbody = document.getElementById('taInventoryList');
     if (!tbody) return;
     tbody.innerHTML = '';
     
-    // Group trades by Token ID to find what I own
     const myHoldings = {};
     
-    // Add purchases
     trades.forEach(t => {
         if (t.buyer === currentUser.email && t.status === 'RELEASED') {
             myHoldings[t.tokenId] = (myHoldings[t.tokenId] || 0) + parseInt(t.amount);
@@ -193,12 +223,11 @@ function renderTAInventory(inventory, trades, bookings) {
     Object.keys(myHoldings).forEach(tokenId => {
         const amountOwned = myHoldings[tokenId];
         
-        // Count my redemptions
+        // Count my redemptions (Sum of amounts, not just count of rows)
         const myRedeemed = bookings
             .filter(b => b.guest === currentUser.email && b.tokenId == tokenId && (b.status === 'COMPLETED' || b.status === 'PENDING_CHECKIN'))
-            .length;
+            .reduce((sum, b) => sum + parseInt(b.amount || 1), 0);
 
-        // Find Name
         const item = inventory.find(i => i.token_id == tokenId);
         const name = item ? item.room_name : `Unknown (ID: ${tokenId})`;
 
@@ -214,11 +243,19 @@ function renderTAInventory(inventory, trades, bookings) {
 }
 
 function renderTrades(trades) {
-    const listId = currentUser.role === 'hotel' ? 'hotelTradeList' : 'taTradeList';
+    let listId = 'taTradeList';
+    if (currentUser.role === 'hotel') listId = 'hotelTradeList';
+    if (currentUser.role === 'admin') listId = 'adminTradeList';
+
     const tbody = document.getElementById(listId);
     if (!tbody) return;
     tbody.innerHTML = '';
-    const relevantTrades = trades.filter(t => t.seller === currentUser.email || t.buyer === currentUser.email);
+
+    let relevantTrades = trades;
+    if (currentUser.role !== 'admin') {
+        relevantTrades = trades.filter(t => t.seller === currentUser.email || t.buyer === currentUser.email);
+    }
+
     if (relevantTrades.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999;">无数据</td></tr>'; return; }
     
     relevantTrades.forEach(t => {
@@ -237,8 +274,9 @@ function renderBookings(bookings) {
     const tbody = document.getElementById(listId);
     if (!tbody) return;
     tbody.innerHTML = '';
+    
     const relevantBookings = currentUser.role === 'hotel' ? bookings : bookings.filter(b => b.guest === currentUser.email);
-    if (relevantBookings.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#999;">无数据</td></tr>'; return; }
+    if (relevantBookings.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#999;">无数据</td></tr>'; return; }
     
     relevantBookings.forEach(b => {
         let action = b.status;
@@ -249,12 +287,14 @@ function renderBookings(bookings) {
             if(b.status === 'COMPLETED') action = '<span style="color:green">核销成功</span>';
             if(b.status === 'CANCELLED') action = '<span style="color:red">已退款</span>';
         }
-        if (currentUser.role === 'hotel') tbody.innerHTML += `<tr><td>${b.id.slice(-4)}</td><td>${b.guestName}</td><td>${b.date}</td><td><span class="badge">${b.status}</span></td><td>${action}</td></tr>`;
-        else tbody.innerHTML += `<tr><td>${b.id.slice(-4)}</td><td>${b.date}</td><td>${b.guestName}</td><td>${action}</td></tr>`;
+        
+        const dateRange = (b.checkIn && b.checkOut) ? `${b.checkIn} -> ${b.checkOut}` : b.date;
+        const totalAmount = b.amount || 1;
+
+        if (currentUser.role === 'hotel') tbody.innerHTML += `<tr><td>${b.id.slice(-4)}</td><td>${b.guestName}</td><td>${dateRange}</td><td>${b.status}</td><td>${action}</td></tr>`;
+        else tbody.innerHTML += `<tr><td>${b.id.slice(-4)}</td><td>${dateRange}</td><td>${totalAmount} Token</td><td>${b.guestName}</td><td>${action}</td></tr>`;
     });
 }
-
-// --- ACTIONS ---
 
 async function createInventory() {
     toggleBtn('btn_create_inv', true, "正在上链 (Minting)...");
@@ -285,7 +325,7 @@ async function createInventory() {
         
         log(`资产凭证发行成功! ID: ${data.tokenId}`);
         alert(`发行成功！凭证 ID: ${data.tokenId}`);
-        refreshState(); // Refresh so it shows in inventory list
+        refreshState(); 
     } catch(e) { alert(e.message); }
     finally { toggleBtn('btn_create_inv', false); }
 }
@@ -368,7 +408,9 @@ async function requestBooking() {
     toggleBtn('btn_book', true, "提交中...");
     const body = {
         tokenId: document.getElementById('ta_book_id').value,
-        date: document.getElementById('ta_book_date').value,
+        checkIn: document.getElementById('ta_book_checkin').value,
+        checkOut: document.getElementById('ta_book_checkout').value,
+        roomCount: document.getElementById('ta_book_rooms').value,
         guestName: document.getElementById('ta_book_guest').value
     };
     log("正在提交预订...");

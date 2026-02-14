@@ -62,10 +62,40 @@
         <select id="role">
             <option value="hotel">酒店方 (资产发行方)</option>
             <option value="ta">旅行社 (分销商)</option>
+            <option value="admin">平台管理方 (Platform Admin)</option>
         </select>
         <div class="row">
             <button id="btn_login" onclick="login()">登录</button>
             <button onclick="register()" style="background:#edf2f7; color:#4a5568;">注册</button>
+        </div>
+    </div>
+
+    <div id="adminView" class="hidden">
+        <div class="card">
+            <h3>平台全景数据 (Platform Overview)</h3>
+             <button onclick="refreshState()" class="btn-orange" style="width:auto;">刷新所有数据</button>
+        </div>
+
+        <div class="card">
+            <h3>全平台库存 (All Inventory)</h3>
+            <table class="status-table">
+                <thead><tr><th>Token ID</th><th>房型名称</th><th>总发行量</th><th>已售/流转</th><th>已核销</th></tr></thead>
+                <tbody id="adminInventoryList"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>全平台交易 (All Trades)</h3>
+             <table class="status-table">
+                <thead><tr><th>单号</th><th>买家</th><th>数量</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="adminTradeList"></tbody>
+            </table>
+        </div>
+
+         <div class="card" style="border:1px solid #fc8181; background:#fff5f5;">
+            <h3 style="color:#c53030;">⚠️ 系统重置 (System Reset)</h3>
+            <p style="font-size:12px; color:#c53030;">点击此按钮将清空所有用户、交易和库存数据。</p>
+            <button class="btn-red" onclick="resetSystem()">重置所有数据 (Wipe All)</button>
         </div>
     </div>
 
@@ -130,7 +160,7 @@
         <div class="card">
             <h3>3. 入住管理 (核销确认)</h3>
             <table class="status-table">
-                <thead><tr><th>单号</th><th>住客</th><th>日期</th><th>状态</th><th>操作</th></tr></thead>
+                <thead><tr><th>单号</th><th>行程 (入住 - 退房)</th><th>数量</th><th>住客</th><th>状态</th><th>操作</th></tr></thead>
                 <tbody id="hotelBookingList"></tbody>
             </table>
         </div>
@@ -178,14 +208,29 @@
             <h3>房晚核销 (预订)</h3>
             <div class="row">
                 <input type="number" id="ta_book_id" placeholder="凭证 ID" class="col">
-                <input type="date" id="ta_book_date" class="col">
                 <input type="text" id="ta_book_guest" placeholder="住客姓名" class="col">
             </div>
+            <div class="row">
+                <div class="col">
+                    <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">入住 (Check-In)</label>
+                    <input type="date" id="ta_book_checkin" style="margin:0;" onchange="calculateCost()">
+                </div>
+                <div class="col">
+                    <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">退房 (Check-Out)</label>
+                    <input type="date" id="ta_book_checkout" style="margin:0;" onchange="calculateCost()">
+                </div>
+                <div class="col">
+                    <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">房间数</label>
+                    <input type="number" id="ta_book_rooms" value="1" min="1" style="margin:0;" onchange="calculateCost()">
+                </div>
+            </div>
+            <div style="margin:10px 0; font-weight:bold; color:#2b6cb0;" id="calcResult">预计消耗: 0 Token</div>
+            
             <button id="btn_book" onclick="requestBooking()" class="btn-green">提交预订 (存入核销托管)</button>
 
             <h4>我的预订记录</h4>
             <table class="status-table">
-                <thead><tr><th>单号</th><th>日期</th><th>住客</th><th>状态</th></tr></thead>
+                <thead><tr><th>单号</th><th>行程 (入住 - 退房)</th><th>数量</th><th>住客</th><th>状态</th></tr></thead>
                 <tbody id="taBookingList"></tbody>
             </table>
         </div>

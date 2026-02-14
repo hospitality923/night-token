@@ -63,10 +63,16 @@ app.post('/auth/login', async (req, res) => {
 
 // --- STATE ---
 app.get('/api/state', authMiddleware, async (req, res) => {
-    const myTrades = Object.values(TRADES).filter(t => t.seller === req.user.email || t.buyer === req.user.email);
-    const myBookings = Object.values(BOOKINGS).filter(b => b.guest === req.user.email || req.user.role === 'hotel');
+    let myTrades, myBookings;
+
+    if (req.user.role === 'admin') {
+        myTrades = Object.values(TRADES);
+        myBookings = Object.values(BOOKINGS);
+    } else {
+        myTrades = Object.values(TRADES).filter(t => t.seller === req.user.email || t.buyer === req.user.email);
+        myBookings = Object.values(BOOKINGS).filter(b => b.guest === req.user.email || req.user.role === 'hotel');
+    }
     
-    // [ADDED] Fetch inventory list for UI display
     let inventory = [];
     try {
         const invRes = await db.query("SELECT * FROM room_inventory");
@@ -103,17 +109,14 @@ app.post('/admin/create-inventory', authMiddleware, async (req, res) => {
 app.post('/api/escrow/create', authMiddleware, async (req, res) => {
     const { tokenId, amount, buyerEmail } = req.body;
     try {
-        // --- NEW: EMAIL LOOKUP LOGIC ---
-        let targetAddress = req.body.buyerAddress; // Fallback if direct address provided
+        let targetAddress = req.body.buyerAddress; 
 
         if (buyerEmail) {
-            console.log(`[Escrow] Looking up wallet for email: ${buyerEmail}`);
             const userRes = await db.query("SELECT wallet_address FROM users WHERE email = $1", [buyerEmail]);
             if (userRes.rows.length === 0) {
-                return res.status(404).json({ error: `User with email ${buyerEmail} not found. Please register them first.` });
+                return res.status(404).json({ error: `User with email ${buyerEmail} not found.` });
             }
             targetAddress = userRes.rows[0].wallet_address;
-            console.log(`[Escrow] Found address: ${targetAddress}`);
         }
 
         if (!targetAddress) return res.status(400).json({ error: "Buyer address or valid email required" });
@@ -122,15 +125,11 @@ app.post('/api/escrow/create', authMiddleware, async (req, res) => {
         
         let tx;
         if (req.user.role === 'hotel') {
-             // Hotel Mints
              const adminWallet = await kmsClient.getWallet();
              const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, adminWallet);
              tx = await tokenContract.mintTokens(adminWallet.address, tokenId, amount, "0x");
         } else {
-             // User Transfers
              const userRes = await db.query("SELECT private_key FROM users WHERE id = $1", [req.user.id]);
-             if (!userRes.rows[0].private_key) return res.status(400).json({error: "User key lost. Please re-register."});
-             
              const provider = new ethers.JsonRpcProvider(process.env.ALCHEMY_API_URL || 'https://rpc-amoy.polygon.technology/');
              const userWallet = new ethers.Wallet(userRes.rows[0].private_key, provider);
              const adminWallet = await kmsClient.getWallet();
@@ -155,7 +154,6 @@ app.post('/api/escrow/release', authMiddleware, async (req, res) => {
     if(!trade || trade.status !== 'LOCKED') return res.status(400).json({error: "Invalid trade"});
     
     try {
-        console.log(`[Escrow] Releasing to ${trade.buyerAddr}...`);
         const adminWallet = await kmsClient.getWallet();
         const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, adminWallet);
 
@@ -167,10 +165,21 @@ app.post('/api/escrow/release', authMiddleware, async (req, res) => {
     } catch (e) { res.status(500).json({error: e.message}); }
 });
 
-// ... (Booking endpoints remain same) ...
+// --- BOOKING (Updated for Date Range & Token Calculation) ---
 app.post('/api/book/request', authMiddleware, async (req, res) => {
-    const { tokenId, date, guestName } = req.body;
+    const { tokenId, checkIn, checkOut, roomCount, guestName } = req.body;
     try {
+        // 1. Calculate cost
+        const start = new Date(checkIn);
+        const end = new Date(checkOut);
+        const diffTime = Math.abs(end - start);
+        const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        if (!nights || nights < 1) return res.status(400).json({error: "Invalid dates"});
+        if (!roomCount || roomCount < 1) return res.status(400).json({error: "Invalid room count"});
+        
+        const totalTokens = nights * roomCount;
+
         const userRes = await db.query("SELECT private_key FROM users WHERE id = $1", [req.user.id]);
         if (!userRes.rows[0].private_key) return res.status(400).json({error: "User key lost."});
 
@@ -179,13 +188,15 @@ app.post('/api/book/request', authMiddleware, async (req, res) => {
         const adminWallet = await kmsClient.getWallet();
         const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, userWallet);
 
-        const tx = await tokenContract.safeTransferFrom(userWallet.address, adminWallet.address, tokenId, 1, "0x");
+        // 2. Transfer TOTAL tokens (Rooms * Nights)
+        console.log(`[Booking] User ${req.user.email} booking ID ${tokenId} for ${nights} nights, ${roomCount} rooms. Total: ${totalTokens}`);
+        const tx = await tokenContract.safeTransferFrom(userWallet.address, adminWallet.address, tokenId, totalTokens, "0x");
         await tx.wait();
 
         const bookingId = Date.now().toString();
         BOOKINGS[bookingId] = {
             id: bookingId, status: 'PENDING_CHECKIN', guest: req.user.email,
-            tokenId, date, guestName, lockTx: tx.hash
+            tokenId, checkIn, checkOut, roomCount, amount: totalTokens, guestName, lockTx: tx.hash
         };
         res.json({ success: true, bookingId, txHash: tx.hash });
     } catch (e) { res.status(500).json({error: e.message}); }
@@ -197,7 +208,8 @@ app.post('/api/book/confirm', authMiddleware, async (req, res) => {
     try {
         const adminWallet = await kmsClient.getWallet();
         const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, adminWallet);
-        const tx = await tokenContract.burn(adminWallet.address, booking.tokenId, 1);
+        // Burn the exact amount for this booking
+        const tx = await tokenContract.burn(adminWallet.address, booking.tokenId, booking.amount);
         await tx.wait();
         booking.status = 'COMPLETED';
         res.json({ success: true, txHash: tx.hash });
@@ -211,20 +223,18 @@ app.post('/api/book/cancel', authMiddleware, async (req, res) => {
         const adminWallet = await kmsClient.getWallet();
         const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, adminWallet);
         const result = await db.query("SELECT wallet_address FROM users WHERE email = $1", [booking.guest]);
-        const tx = await tokenContract.safeTransferFrom(adminWallet.address, result.rows[0].wallet_address, booking.tokenId, 1, "0x");
+        // Return the exact amount
+        const tx = await tokenContract.safeTransferFrom(adminWallet.address, result.rows[0].wallet_address, booking.tokenId, booking.amount, "0x");
         await tx.wait();
         booking.status = 'CANCELLED';
         res.json({ success: true, txHash: tx.hash });
     } catch (e) { res.status(500).json({error: e.message}); }
 });
 
-// --- SYSTEM RESET ---
 app.post("/admin/reset", authMiddleware, async (req, res) => {
-    if(req.user.role !== "hotel") return res.status(403).json({error: "Admin only"});
+    if(req.user.role !== "hotel" && req.user.role !== "admin") return res.status(403).json({error: "Admin only"});
     try {
-        // 1. Wipe DB
         await db.query("TRUNCATE users, room_inventory RESTART IDENTITY CASCADE");
-        // 2. Clear In-Memory State
         for (const key in TRADES) delete TRADES[key];
         for (const key in BOOKINGS) delete BOOKINGS[key];
         console.log("[System] HARD RESET TRIGGERED BY ADMIN");
