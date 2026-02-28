@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>房晚数字资产管理平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f8f9fa; color: #2d3748; margin: 0; padding: 20px; }
         .container { max-width: 1000px; margin: 0 auto; }
@@ -31,6 +32,12 @@
         .modal-box { background: white; width: 400px; padding: 30px; border-radius: 12px; text-align: center; }
         .progress-bar { height: 4px; background: #edf2f7; width: 100%; margin: 20px 0; border-radius: 2px; }
         .progress-fill { height: 100%; background: #48bb78; width: 0%; transition: width 0.5s; }
+
+        /* Dashboard Styles */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .stat-box { background: #ebf8ff; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #bee3f8; }
+        .stat-box .num { font-size: 22px; font-weight: bold; color: #2b6cb0; margin-top: 5px; }
+        .chart-box { height: 250px; padding: 10px; position: relative; }
     </style>
 </head>
 <body>
@@ -72,8 +79,15 @@
 
     <div id="adminView" class="hidden">
         <div class="card">
-            <h3>平台全景数据 (Platform Overview)</h3>
-             <button onclick="refreshState()" class="btn-orange" style="width:auto;">刷新所有数据</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h3 style="margin:0;">平台全景数据看板 (Platform Dashboard)</h3>
+                <button onclick="refreshState()" class="btn-orange" style="width:auto; padding:5px 15px;">刷新数据</button>
+            </div>
+            <div id="adminStats" class="stats-grid"></div>
+            <div class="row">
+                <div class="col chart-box" style="border: 1px solid #edf2f7; border-radius: 8px;"><canvas id="adminChart1"></canvas></div>
+                <div class="col chart-box" style="border: 1px solid #edf2f7; border-radius: 8px;"><canvas id="adminChart2"></canvas></div>
+            </div>
         </div>
 
         <div class="card">
@@ -100,6 +114,15 @@
     </div>
 
     <div id="hotelView" class="hidden">
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h3 style="margin:0;">酒店数据看板 (Hotel Dashboard)</h3>
+                <button onclick="refreshState()" class="btn-orange" style="width:auto; padding:5px 15px;">刷新</button>
+            </div>
+            <div id="hotelStats" class="stats-grid"></div>
+            <div class="chart-box"><canvas id="hotelChart"></canvas></div>
+        </div>
+
         <div class="card">
             <h3>1. 定义资产库存 (黑盒发行)</h3>
             <div class="row">
@@ -150,7 +173,6 @@
             <button id="btn_escrow_hotel" onclick="createEscrow('hotel')" class="btn-green">发起托管 (存入资产)</button>
 
             <h4>待确认收款 (Pending Payments)</h4>
-            <button onclick="refreshState()" style="width:auto; padding:2px 8px; font-size:11px; margin-bottom:5px;">刷新列表</button>
             <table class="status-table">
                 <thead><tr><th>单号</th><th>买家</th><th>数量</th><th>状态</th><th>操作</th></tr></thead>
                 <tbody id="hotelTradeList"></tbody>
@@ -174,10 +196,12 @@
 
     <div id="taView" class="hidden">
         <div class="card">
-            <h3>我的资产操作</h3>
-            <div class="row">
-                <button onclick="refreshState()" class="btn-orange">刷新数据</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h3 style="margin:0;">资产数据看板 (TA Dashboard)</h3>
+                <button onclick="refreshState()" class="btn-orange" style="width:auto; padding:5px 15px;">刷新</button>
             </div>
+            <div id="taStats" class="stats-grid"></div>
+            <div class="chart-box"><canvas id="taChart"></canvas></div>
         </div>
 
         <div class="card">
@@ -241,12 +265,12 @@
     <div id="hwModal" class="modal-overlay hidden">
         <div class="modal-box">
             <div style="font-size:40px;">🔐</div>
-            <h3>安全风控检查</h3>
-            <p>大额资产调拨需要硬件密钥 (USB Key) 签名</p>
+            <h3 style="margin-top:10px;">安全风控检查</h3>
+            <p style="font-size:13px; color:#718096;">大额资产调拨需要硬件密钥 (USB Key) 签名</p>
             <div id="hwStatus" style="font-weight:bold; color:#e53e3e; margin:10px 0;">请插入硬件密钥...</div>
             <div class="progress-bar"><div id="hwProgress" class="progress-fill"></div></div>
             <button id="hwBtn" onclick="simulateHwSign()">模拟插入密钥</button>
-            <button onclick="document.getElementById('hwModal').classList.add('hidden')" style="background:#ccc; margin-top:10px;">取消</button>
+            <button onclick="document.getElementById('hwModal').classList.add('hidden')" style="background:#edf2f7; color:#4a5568; margin-top:10px;">取消操作</button>
         </div>
     </div>
 

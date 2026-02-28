@@ -2,6 +2,7 @@ const API_URL = window.location.origin;
 const EXPLORER_URL = "https://amoy.polygonscan.com/tx/";
 let token = localStorage.getItem('token');
 let currentUser = null;
+let myCharts = {}; // 用于存储图表实例，防止重复渲染叠加
 
 try {
     const storedUser = localStorage.getItem('user');
@@ -67,7 +68,6 @@ function calculateCost() {
 async function resetSystem() {
     if (!confirm("⚠️ 严重警告 ⚠️\n\n确定要清空所有数据吗？\n这将删除所有用户、库存和交易记录，且无法恢复！")) return;
     
-    // Double check to be safe
     const code = prompt("请输入 'RESET' 以确认重置操作:");
     if (code !== 'RESET') return alert("操作已取消");
 
@@ -137,12 +137,10 @@ function setupDashboard() {
 
     document.getElementById('userAddr').innerText = currentUser.wallet_address || "Loading...";
     
-    // Hide all first
     document.getElementById('hotelView').classList.add('hidden');
     document.getElementById('taView').classList.add('hidden');
     document.getElementById('adminView').classList.add('hidden');
 
-    // Show specific
     if(currentUser.role === 'hotel') {
         document.getElementById('hotelView').classList.remove('hidden');
     } else if (currentUser.role === 'ta') {
@@ -159,7 +157,7 @@ async function refreshState() {
         const res = await fetch(`${API_URL}/api/state`, { headers: {'Authorization': token} });
         if(handleAuthError(res)) return;
         
-        const { trades, bookings, inventory } = await res.json();
+        const { trades, bookings, inventory, stats } = await res.json();
         
         if (currentUser.role === 'hotel') {
             renderHotelInventory(inventory || [], trades || [], bookings || []);
@@ -173,7 +171,88 @@ async function refreshState() {
             renderHotelInventory(inventory || [], trades || [], bookings || [], 'adminInventoryList');
             renderTrades(trades || []);
         }
+        
+        renderDashboardCharts(inventory || [], trades || [], bookings || [], stats || {});
+        
     } catch(e) { console.error(e); }
+}
+
+// --- NEW DASHBOARD RENDERING LOGIC ---
+function renderDashboardCharts(inventory, trades, bookings, stats) {
+    if (currentUser.role === 'admin') {
+        const totalTokens = inventory.reduce((sum, i) => sum + parseInt(i.total_supply), 0);
+        const totalSold = trades.filter(t => t.status === 'RELEASED').reduce((sum, t) => sum + parseInt(t.amount), 0);
+        const totalRedeemed = bookings.filter(b => b.status === 'COMPLETED').reduce((sum, b) => sum + parseInt(b.amount || 1), 0);
+        
+        document.getElementById('adminStats').innerHTML = `
+            <div class="stat-box"><div>总用户数</div><div class="num">${stats.totalUsers || 0}</div></div>
+            <div class="stat-box"><div>总产品数</div><div class="num">${inventory.length}</div></div>
+            <div class="stat-box"><div>总资产(Token)</div><div class="num">${totalTokens}</div></div>
+            <div class="stat-box"><div>总交易流转量</div><div class="num">${totalSold}</div></div>
+            <div class="stat-box"><div>已完成核销数</div><div class="num">${totalRedeemed}</div></div>
+        `;
+        
+        drawChart('adminChart1', 'pie', ['未流转库存', '已分销(TA持有)', '已核销使用'], 
+            [Math.max(0, totalTokens - totalSold), Math.max(0, totalSold - totalRedeemed), totalRedeemed], '全平台资产宏观分布');
+            
+        // 模拟近期活跃度 (简化图表展示)
+        drawChart('adminChart2', 'bar', ['流转交易', '核销请求'], [trades.length, bookings.length], '全平台业务活跃度');
+
+    } else if (currentUser.role === 'hotel') {
+        const totalTokens = inventory.reduce((sum, i) => sum + parseInt(i.total_supply), 0);
+        const mySold = trades.filter(t => t.seller === currentUser.email && t.status === 'RELEASED').reduce((sum, t) => sum + parseInt(t.amount), 0);
+        const myRedeemed = bookings.filter(b => b.status === 'COMPLETED').reduce((sum, b) => sum + parseInt(b.amount || 1), 0);
+        
+        document.getElementById('hotelStats').innerHTML = `
+            <div class="stat-box"><div>产品类型数</div><div class="num">${inventory.length}</div></div>
+            <div class="stat-box"><div>总发行 Token</div><div class="num">${totalTokens}</div></div>
+            <div class="stat-box"><div>已分销交易</div><div class="num">${mySold}</div></div>
+            <div class="stat-box"><div>已核销确认</div><div class="num">${myRedeemed}</div></div>
+            <div class="stat-box"><div>总预订订单数</div><div class="num">${bookings.length}</div></div>
+        `;
+        
+        drawChart('hotelChart', 'bar', ['总发行资产', '已流转至分销商', '终端已核销'], [totalTokens, mySold, myRedeemed], '我的资产流通漏斗');
+
+    } else if (currentUser.role === 'ta') {
+        let myHeld = 0;
+        trades.forEach(t => { if (t.buyer === currentUser.email && t.status === 'RELEASED') myHeld += parseInt(t.amount); });
+        
+        const myRedeemed = bookings.filter(b => b.guest === currentUser.email && b.status === 'COMPLETED').reduce((sum, b) => sum + parseInt(b.amount || 1), 0);
+        const myPending = bookings.filter(b => b.guest === currentUser.email && b.status === 'PENDING_CHECKIN').reduce((sum, b) => sum + parseInt(b.amount || 1), 0);
+        const remaining = Math.max(0, myHeld - myRedeemed - myPending);
+
+        document.getElementById('taStats').innerHTML = `
+            <div class="stat-box"><div>历史买入 Token</div><div class="num">${myHeld}</div></div>
+            <div class="stat-box"><div><span style="color:green">●</span> 剩余可用 Token</div><div class="num">${remaining}</div></div>
+            <div class="stat-box"><div>已核销/锁定 Token</div><div class="num">${myRedeemed + myPending}</div></div>
+            <div class="stat-box"><div>我的预订订单数</div><div class="num">${bookings.filter(b => b.guest === currentUser.email).length}</div></div>
+        `;
+        
+        drawChart('taChart', 'doughnut', ['剩余可用', '已预订待入住', '已完成核销'], [remaining, myPending, myRedeemed], '我的数字资产持仓情况');
+    }
+}
+
+function drawChart(canvasId, type, labels, data, title) {
+    if (!document.getElementById(canvasId)) return;
+    if (myCharts[canvasId]) myCharts[canvasId].destroy(); // 清除旧图表防止重叠
+    
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    myCharts[canvasId] = new Chart(ctx, {
+        type: type,
+        data: {
+            labels: labels,
+            datasets: [{
+                label: title,
+                data: data,
+                backgroundColor: ['#4299e1', '#ed8936', '#48bb78', '#9f7aea', '#f56565'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'bottom' }, title: { display: true, text: title, font: {size: 14} } }
+        }
+    });
 }
 
 function renderHotelInventory(inventory, trades, bookings, targetId = 'hotelInventoryList') {
@@ -188,7 +267,7 @@ function renderHotelInventory(inventory, trades, bookings, targetId = 'hotelInve
             
         const redeemedCount = bookings
             .filter(b => b.tokenId == item.token_id && b.status === 'COMPLETED')
-            .reduce((sum, b) => sum + parseInt(b.amount || 1), 0); // Sum amount not just count
+            .reduce((sum, b) => sum + parseInt(b.amount || 1), 0);
             
         tbody.innerHTML += `
             <tr>
@@ -223,7 +302,6 @@ function renderTAInventory(inventory, trades, bookings) {
     Object.keys(myHoldings).forEach(tokenId => {
         const amountOwned = myHoldings[tokenId];
         
-        // Count my redemptions (Sum of amounts, not just count of rows)
         const myRedeemed = bookings
             .filter(b => b.guest === currentUser.email && b.tokenId == tokenId && (b.status === 'COMPLETED' || b.status === 'PENDING_CHECKIN'))
             .reduce((sum, b) => sum + parseInt(b.amount || 1), 0);
@@ -307,7 +385,6 @@ async function createInventory() {
     const blackoutStr = (dateStart && dateEnd) ? `${dateStart} 至 ${dateEnd}` : "";
 
     if(!h_id || !h_name || !h_supply) { toggleBtn('btn_create_inv', false); return alert("请填写完整信息"); }
-
     if(h_supply <= 0 || document.getElementById('h_cap').value < 0) { toggleBtn('btn_create_inv', false); return alert("数量不能为负数"); }
 
     const body = {

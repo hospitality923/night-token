@@ -14,11 +14,16 @@ const escrowABI = [
 
 async function main() {
   console.log("Starting Blockchain Polling Service...");
-  const provider = new ethers.JsonRpcProvider(process.env.ALCHEMY_API_URL); 
+  // 增加 Polygon 节点的 Fallback
+  const provider = new ethers.JsonRpcProvider(process.env.ALCHEMY_API_URL || 'https://rpc-amoy.polygon.technology/'); 
+
+  // 增加智能合约地址的 Fallback (使用您在后端代码中的同款地址)
+  const tokenAddress = process.env.ROOM_NIGHT_TOKEN_ADDRESS || "0xb7844D97c40DDd2AF0e1dec3aFf336141E287629";
+  const escrowAddress = process.env.TOKEN_ESCROW_ADDRESS || "0x18C1aC0917ACf25a10Dcc8A00A03b48f8bC06597";
 
   // Define Contracts
-  const tokenContract = new ethers.Contract(process.env.ROOM_NIGHT_TOKEN_ADDRESS, tokenABI, provider);
-  const escrowContract = new ethers.Contract(process.env.TOKEN_ESCROW_ADDRESS, escrowABI, provider);
+  const tokenContract = new ethers.Contract(tokenAddress, tokenABI, provider);
+  const escrowContract = new ethers.Contract(escrowAddress, escrowABI, provider);
 
   // State tracking
   let lastBlock = await provider.getBlockNumber();

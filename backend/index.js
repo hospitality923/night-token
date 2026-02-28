@@ -45,7 +45,7 @@ app.post('/auth/register', async (req, res) => {
 
         res.json({ id: result.rows[0].id, email, role, wallet_address: wallet.address });
     } catch (err) {
-	if (err.code === '23505' || err.message.includes('unique constraint')) {
+        if (err.code === '23505' || err.message.includes('unique constraint')) {
             return res.status(400).json({ error: "该邮箱已被注册，请直接登录。 (Email already registered)" });
         }
         return res.status(400).json({ error: "Registration failed: " + err.message });
@@ -57,26 +57,29 @@ app.post('/auth/login', async (req, res) => {
     try {
         const result = await db.query(`SELECT * FROM users WHERE email = $1 AND password = $2`, [email, password]);
         const row = result.rows[0];
-	
-	if (!row) return res.status(401).json({ error: "邮箱或密码错误 (Invalid email or password)" });
-        //if (!row) return res.status(401).json({ error: "Invalid credentials" });
+    
+        if (!row) return res.status(401).json({ error: "邮箱或密码错误 (Invalid email or password)" });
         
         const token = jwt.sign({ id: row.id, email: row.email, role: row.role, wallet_address: row.wallet_address }, 'secret', { expiresIn: '1d' });
         res.json({ token, user: row });
     } catch (err) { 
-	console.error("[Login Error]", err.message);
+        console.error("[Login Error]", err.message);
         res.status(500).json({ error: "服务器内部异常，请稍后再试 (Internal server error)" });
-	//res.status(500).json({ error: err.message }); 
     }
 });
 
-// --- STATE ---
+// --- STATE (Updated for Dashboard Stats) ---
 app.get('/api/state', authMiddleware, async (req, res) => {
     let myTrades, myBookings;
+    let stats = { totalUsers: 0 };
 
     if (req.user.role === 'admin') {
         myTrades = Object.values(TRADES);
         myBookings = Object.values(BOOKINGS);
+        try {
+            const uRes = await db.query("SELECT COUNT(*) as c FROM users");
+            stats.totalUsers = parseInt(uRes.rows[0].c);
+        } catch(e) {}
     } else {
         myTrades = Object.values(TRADES).filter(t => t.seller === req.user.email || t.buyer === req.user.email);
         myBookings = Object.values(BOOKINGS).filter(b => b.guest === req.user.email || req.user.role === 'hotel');
@@ -88,7 +91,7 @@ app.get('/api/state', authMiddleware, async (req, res) => {
         inventory = invRes.rows;
     } catch(e) { console.error("Inv fetch error", e); }
 
-    res.json({ trades: myTrades, bookings: myBookings, inventory });
+    res.json({ trades: myTrades, bookings: myBookings, inventory, stats });
 });
 
 // --- ACTIONS ---
@@ -125,7 +128,7 @@ app.post('/api/escrow/create', authMiddleware, async (req, res) => {
         return res.status(400).json({ error: "数量必须大于0 (Amount must be > 0)" });
     }
     try {
-	if (req.user.role === 'hotel') {
+        if (req.user.role === 'hotel') {
             const inv = await db.query("SELECT total_supply, minted_count FROM room_inventory WHERE token_id = $1", [tokenId]);
             if (inv.rows.length === 0) return res.status(400).json({ error: "凭证ID不存在 (Invalid Token ID)" });
             
@@ -153,7 +156,7 @@ app.post('/api/escrow/create', authMiddleware, async (req, res) => {
              const adminWallet = await kmsClient.getWallet();
              const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, adminWallet);
              tx = await tokenContract.mintTokens(adminWallet.address, tokenId, amount, "0x");
-	     await db.query("UPDATE room_inventory SET minted_count = minted_count + $1 WHERE token_id = $2", [amount, tokenId]);
+             await db.query("UPDATE room_inventory SET minted_count = minted_count + $1 WHERE token_id = $2", [amount, tokenId]);
         } else {
              const userRes = await db.query("SELECT private_key FROM users WHERE id = $1", [req.user.id]);
              const provider = new ethers.JsonRpcProvider(process.env.ALCHEMY_API_URL || 'https://rpc-amoy.polygon.technology/');
