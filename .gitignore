@@ -6,3 +6,7 @@ listener/node_modules/
 artifacts/
 cache/
 .DS_Store
+ssl/
+*.key
+*.crt
+*.0221
