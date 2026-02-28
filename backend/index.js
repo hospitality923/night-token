@@ -45,6 +45,9 @@ app.post('/auth/register', async (req, res) => {
 
         res.json({ id: result.rows[0].id, email, role, wallet_address: wallet.address });
     } catch (err) {
+	if (err.code === '23505' || err.message.includes('unique constraint')) {
+            return res.status(400).json({ error: "该邮箱已被注册，请直接登录。 (Email already registered)" });
+        }
         return res.status(400).json({ error: "Registration failed: " + err.message });
     }
 });
@@ -54,11 +57,17 @@ app.post('/auth/login', async (req, res) => {
     try {
         const result = await db.query(`SELECT * FROM users WHERE email = $1 AND password = $2`, [email, password]);
         const row = result.rows[0];
-        if (!row) return res.status(401).json({ error: "Invalid credentials" });
+	
+	if (!row) return res.status(401).json({ error: "邮箱或密码错误 (Invalid email or password)" });
+        //if (!row) return res.status(401).json({ error: "Invalid credentials" });
         
         const token = jwt.sign({ id: row.id, email: row.email, role: row.role, wallet_address: row.wallet_address }, 'secret', { expiresIn: '1d' });
         res.json({ token, user: row });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+	console.error("[Login Error]", err.message);
+        res.status(500).json({ error: "服务器内部异常，请稍后再试 (Internal server error)" });
+	//res.status(500).json({ error: err.message }); 
+    }
 });
 
 // --- STATE ---
@@ -85,6 +94,10 @@ app.get('/api/state', authMiddleware, async (req, res) => {
 // --- ACTIONS ---
 app.post('/admin/create-inventory', authMiddleware, async (req, res) => {
     const { hotelId, roomName, totalSupply, publicCap, blackoutDates, dayType } = req.body;
+
+    if (Number(totalSupply) <= 0 || Number(publicCap) < 0) {
+        return res.status(400).json({ error: "总发行量必须大于0，公开额度不能为负 (Invalid amounts)" });
+    }
     try {
         const adminWallet = await kmsClient.getWallet();
         const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, adminWallet);
@@ -108,7 +121,19 @@ app.post('/admin/create-inventory', authMiddleware, async (req, res) => {
 
 app.post('/api/escrow/create', authMiddleware, async (req, res) => {
     const { tokenId, amount, buyerEmail } = req.body;
+    if (Number(amount) <= 0) {
+        return res.status(400).json({ error: "数量必须大于0 (Amount must be > 0)" });
+    }
     try {
+	if (req.user.role === 'hotel') {
+            const inv = await db.query("SELECT total_supply, minted_count FROM room_inventory WHERE token_id = $1", [tokenId]);
+            if (inv.rows.length === 0) return res.status(400).json({ error: "凭证ID不存在 (Invalid Token ID)" });
+            
+            const available = Number(inv.rows[0].total_supply) - Number(inv.rows[0].minted_count);
+            if (Number(amount) > available) {
+                return res.status(400).json({ error: `超发限制: 该房型最多只能再分销 ${available} 个` });
+            }
+        }
         let targetAddress = req.body.buyerAddress; 
 
         if (buyerEmail) {
@@ -128,6 +153,7 @@ app.post('/api/escrow/create', authMiddleware, async (req, res) => {
              const adminWallet = await kmsClient.getWallet();
              const tokenContract = new ethers.Contract(CONTRACT_ADDRESSES.TOKEN, TOKEN_ABI, adminWallet);
              tx = await tokenContract.mintTokens(adminWallet.address, tokenId, amount, "0x");
+	     await db.query("UPDATE room_inventory SET minted_count = minted_count + $1 WHERE token_id = $2", [amount, tokenId]);
         } else {
              const userRes = await db.query("SELECT private_key FROM users WHERE id = $1", [req.user.id]);
              const provider = new ethers.JsonRpcProvider(process.env.ALCHEMY_API_URL || 'https://rpc-amoy.polygon.technology/');

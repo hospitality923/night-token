@@ -308,6 +308,8 @@ async function createInventory() {
 
     if(!h_id || !h_name || !h_supply) { toggleBtn('btn_create_inv', false); return alert("请填写完整信息"); }
 
+    if(h_supply <= 0 || document.getElementById('h_cap').value < 0) { toggleBtn('btn_create_inv', false); return alert("数量不能为负数"); }
+
     const body = {
         hotelId: h_id, roomName: h_name, totalSupply: h_supply,
         publicCap: document.getElementById('h_cap').value,
