@@ -14,8 +14,8 @@
         .row { display: flex; gap: 15px; align-items:flex-start; }
         .col { flex: 1; }
         button { background: #3182ce; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; }
         .btn-green { background: #48bb78; }
         .btn-red { background: #f56565; }
         .btn-orange { background: #ed8936; }
@@ -33,11 +33,21 @@
         .progress-bar { height: 4px; background: #edf2f7; width: 100%; margin: 20px 0; border-radius: 2px; }
         .progress-fill { height: 100%; background: #48bb78; width: 0%; transition: width 0.5s; }
 
-        /* Dashboard Styles */
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .stat-box { background: #ebf8ff; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #bee3f8; }
-        .stat-box .num { font-size: 22px; font-weight: bold; color: #2b6cb0; margin-top: 5px; }
-        .chart-box { height: 250px; padding: 10px; position: relative; }
+        /* Modern Dashboard Styles */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-box { background: #ffffff; padding: 20px 15px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); transition: transform 0.2s, box-shadow 0.2s; position: relative; }
+        .stat-box:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.06); }
+        .stat-box .title { font-size: 13px; color: #718096; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-box .num { font-size: 28px; font-weight: bold; color: #2d3748; }
+        .stat-box.blue { border-bottom: 4px solid #4299e1; }
+        .stat-box.green { border-bottom: 4px solid #48bb78; }
+        .stat-box.orange { border-bottom: 4px solid #ed8936; }
+        .stat-box.purple { border-bottom: 4px solid #9f7aea; }
+        .chart-box { height: 280px; padding: 15px; position: relative; }
+        
+        /* Modern Login Enhancements */
+        .modern-input { padding: 14px 16px; font-size: 15px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; transition: border-color 0.2s, box-shadow 0.2s; }
+        .modern-input:focus { outline: none; border-color: #3182ce; box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1); background-color: #ffffff; }
     </style>
 </head>
 <body>
@@ -45,7 +55,7 @@
 <div class="container">
     <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-            <h1>酒店房晚数字资产管理平台 <span style="font-size:14px; color:#718096;">(v3.2 Pilot)</span></h1>
+            <h1>酒店房晚数字资产管理平台 <span style="font-size:14px; color:#718096;">(v3.3)</span></h1>
             <div style="font-size:13px; color:#718096;">B2B 数字化分销与托管解决方案</div>
         </div>
         <div style="text-align:right;">
@@ -62,18 +72,20 @@
         </div>
     </div>
 
-    <div id="authView" class="card">
-        <h3>系统登录</h3>
-        <input type="email" id="email" placeholder="电子邮箱">
-        <input type="password" id="password" placeholder="密码">
-        <select id="role">
-            <option value="hotel">酒店方 (资产发行方)</option>
-            <option value="ta">旅行社 (分销商)</option>
-            <option value="admin">平台管理方 (Platform Admin)</option>
-        </select>
-        <div class="row">
-            <button id="btn_login" onclick="login()">登录</button>
-            <button onclick="register()" style="background:#edf2f7; color:#4a5568;">注册</button>
+    <div id="authView" class="card" style="max-width: 420px; margin: 60px auto; padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); text-align: center; border: none;">
+        <div style="margin-bottom: 30px;">
+            <div style="font-size: 46px; margin-bottom: 10px;">🏨</div>
+            <h2 style="color: #2d3748; margin: 0 0 8px 0; font-size: 24px;">欢迎登录系统</h2>
+            <p style="color: #718096; font-size: 14px; margin: 0;">请使用您的管理账号进行安全登录</p>
+        </div>
+        <div style="text-align: left;">
+            <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">电子邮箱</label>
+            <input type="email" id="email" class="modern-input" placeholder="例如: admin@hotel.com, admin@travel.com">
+            
+            <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block; margin-top: 15px;">登录密码</label>
+            <input type="password" id="password" class="modern-input" placeholder="••••••••" onkeypress="if(event.key === 'Enter') login()">
+            
+            <button id="btn_login" onclick="login()" style="padding: 14px; font-size: 16px; border-radius: 8px; margin-top: 25px; box-shadow: 0 4px 12px rgba(49,130,206,0.25);">安全登录</button>
         </div>
     </div>
 
@@ -106,10 +118,29 @@
             </table>
         </div>
 
+         
+        <div class="card">
+            <h3>用户账号管理 (User Management)</h3>
+            <div class="row">
+                <input type="email" id="admin_new_user_email" placeholder="电子邮箱" class="col">
+                <input type="password" id="admin_new_user_pwd" placeholder="密码" class="col">
+                <select id="admin_new_user_role" class="col">
+                    <option value="hotel">酒店方 (资产发行方)</option>
+                    <option value="ta">旅行社 (分销商)</option>
+                    <option value="admin">平台管理方</option>
+                </select>
+                <button id="btn_create_user" onclick="adminCreateUser()" class="btn-green" style="width:auto; margin: 5px 0 15px; padding: 10px 20px; box-sizing: border-box;">新建用户</button>
+            </div>
+            <table class="status-table">
+                <thead><tr><th>ID</th><th>邮箱</th><th>角色</th><th>钱包地址</th><th>操作</th></tr></thead>
+                <tbody id="adminUserList"></tbody>
+            </table>
+        </div>
+
          <div class="card" style="border:1px solid #fc8181; background:#fff5f5;">
             <h3 style="color:#c53030;">⚠️ 系统重置 (System Reset)</h3>
             <p style="font-size:12px; color:#c53030;">点击此按钮将清空所有用户、交易和库存数据。</p>
-            <button class="btn-red" onclick="resetSystem()">重置所有数据 (Wipe All)</button>
+            <button id="btn_reset" class="btn-red" onclick="resetSystem()">重置所有数据 (Wipe All)</button>
         </div>
     </div>
 
@@ -144,10 +175,6 @@
                 <div class="col">
                     <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">至 (End)</label>
                     <input type="date" id="h_blackout_end" style="margin:0;">
-                </div>
-                <div class="col">
-                    <label style="font-size:12px; color:#666; display:block; margin-bottom:5px;">&nbsp;</label>
-                    <input type="number" id="h_cap" placeholder="公开额度" style="margin:0;" min="0">
                 </div>
             </div>
             <br>
@@ -185,12 +212,6 @@
                 <thead><tr><th>单号</th><th>行程 (入住 - 退房)</th><th>数量</th><th>住客</th><th>状态</th><th>操作</th></tr></thead>
                 <tbody id="hotelBookingList"></tbody>
             </table>
-        </div>
-
-        <div class="card" style="border:1px solid #fc8181; background:#fff5f5;">
-            <h3 style="color:#c53030;">⚠️ 演示系统重置 (Admin Zone)</h3>
-            <p style="font-size:12px; color:#c53030;">点击此按钮将清空所有用户、交易和库存数据。请仅在演示结束后使用。</p>
-            <button class="btn-red" onclick="resetSystem()">重置所有数据 (Wipe All)</button>
         </div>
     </div>
 
@@ -271,6 +292,30 @@
             <div class="progress-bar"><div id="hwProgress" class="progress-fill"></div></div>
             <button id="hwBtn" onclick="simulateHwSign()">模拟插入密钥</button>
             <button onclick="document.getElementById('hwModal').classList.add('hidden')" style="background:#edf2f7; color:#4a5568; margin-top:10px;">取消操作</button>
+        </div>
+    </div>
+
+    <div id="editUserModal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div style="font-size:40px;">✏️</div>
+            <h3 style="margin-top:10px;">编辑用户 (Edit User)</h3>
+            <input type="hidden" id="edit_user_id">
+            <div style="text-align: left;">
+                <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">电子邮箱</label>
+                <input type="email" id="edit_user_email" class="modern-input" placeholder="电子邮箱" style="width:100%; margin-bottom:15px; padding: 10px;">
+                
+                <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">新密码 (留空则不修改)</label>
+                <input type="password" id="edit_user_pwd" class="modern-input" placeholder="••••••••" style="width:100%; margin-bottom:15px; padding: 10px;">
+                
+                <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">角色权限</label>
+                <select id="edit_user_role" class="modern-input" style="width:100%; margin-bottom:25px; padding: 10px;">
+                    <option value="hotel">酒店方 (资产发行方)</option>
+                    <option value="ta">旅行社 (分销商)</option>
+                    <option value="admin">平台管理方</option>
+                </select>
+            </div>
+            <button id="btn_update_user" onclick="submitEditUser()" class="btn-green" style="margin-bottom: 10px;">保存修改</button>
+            <button onclick="document.getElementById('editUserModal').classList.add('hidden')" style="background:#edf2f7; color:#4a5568;">取消操作</button>
         </div>
     </div>
 
