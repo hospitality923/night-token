@@ -31,12 +31,11 @@ const MIN_BALANCE = "0.001"; // Threshold to trigger gas funding
             CREATE TABLE IF NOT EXISTS room_inventory (
                 token_id VARCHAR PRIMARY KEY, hotel_id VARCHAR, room_name VARCHAR,
                 total_supply INTEGER, public_cap INTEGER, minted_count INTEGER,
-                blackout_dates VARCHAR, owner_email VARCHAR
+                blackout_dates VARCHAR
             );
         `);
-        // Safely alter existing tables if they were created in an older version
+        // Safely alter existing table to add blackout_dates if it was created in an older version
         await db.query(`ALTER TABLE room_inventory ADD COLUMN blackout_dates VARCHAR;`).catch(() => {});
-        await db.query(`ALTER TABLE room_inventory ADD COLUMN owner_email VARCHAR;`).catch(() => {});
     } catch (e) { console.error("[DB Init Error]", e); }
 })();
 
@@ -95,34 +94,29 @@ app.post('/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Internal server error" }); }
 });
 
-// --- API STATE (WITH DATA ISOLATION) ---
+// --- API STATE ---
 app.get('/api/state', authMiddleware, async (req, res) => {
-    let myTrades = [], myBookings = [], myInventory = [], stats = { totalUsers: 0 };
+    let myTrades = [], myBookings = [], stats = { totalUsers: 0 };
     try {
         const uRes = await db.query("SELECT COUNT(*) as c FROM users");
         stats.totalUsers = parseInt(uRes.rows[0].c);
 
         const tQ = `SELECT id, status, seller, buyer, buyer_addr as "buyerAddr", token_id as "tokenId", amount, lock_tx as "lockTx" FROM trades`;
         const bQ = `SELECT id, status, guest, token_id as "tokenId", check_in as "checkIn", check_out as "checkOut", room_count as "roomCount", amount, guest_name as "guestName", lock_tx as "lockTx" FROM bookings`;
-        const iQ = `SELECT * FROM room_inventory`;
 
         if (req.user.role === 'admin') {
             myTrades = (await db.query(tQ)).rows;
             myBookings = (await db.query(bQ)).rows;
-            myInventory = (await db.query(iQ)).rows;
         } else if (req.user.role === 'hotel') {
-            // Hotel isolation: only see own trades, own bookings against their tokens, and own inventory
             myTrades = (await db.query(tQ + " WHERE seller = $1 OR buyer = $1", [req.user.email])).rows;
-            myBookings = (await db.query(bQ + " WHERE token_id IN (SELECT token_id FROM room_inventory WHERE owner_email = $1)", [req.user.email])).rows;
-            myInventory = (await db.query(iQ + " WHERE owner_email = $1", [req.user.email])).rows;
+            myBookings = (await db.query(bQ)).rows;
         } else {
-            // TA sees their own interactions, but requires global inventory list to map Token IDs to Room Names locally
             myTrades = (await db.query(tQ + " WHERE seller = $1 OR buyer = $1", [req.user.email])).rows;
             myBookings = (await db.query(bQ + " WHERE guest = $1", [req.user.email])).rows;
-            myInventory = (await db.query(iQ)).rows;
         }
 
-        res.json({ trades: myTrades, bookings: myBookings, inventory: myInventory, stats });
+        const invRes = await db.query("SELECT * FROM room_inventory");
+        res.json({ trades: myTrades, bookings: myBookings, inventory: invRes.rows, stats });
     } catch(e) { 
         console.error("[State Error]", e); 
         res.status(500).json({ error: e.message });
@@ -209,10 +203,9 @@ app.post('/admin/create-inventory', authMiddleware, async (req, res) => {
         const tokenId = nextIdBigInt.toString(); 
         const tx = await tokenContract.createRoomType(hotelId, fullName); await tx.wait();
         
-        // Attaches creator's email to DB for hotel data isolation
         await db.query(
-            `INSERT INTO room_inventory (token_id, hotel_id, room_name, total_supply, public_cap, minted_count, blackout_dates, owner_email) VALUES ($1, $2, $3, $4, $5, 0, $6, $7)`, 
-            [tokenId, hotelId, fullName, totalSupply, publicCap, blackoutDates || "", req.user.email]
+            `INSERT INTO room_inventory (token_id, hotel_id, room_name, total_supply, public_cap, minted_count, blackout_dates) VALUES ($1, $2, $3, $4, $5, 0, $6)`, 
+            [tokenId, hotelId, fullName, totalSupply, publicCap, blackoutDates || ""]
         );
         
         res.json({success: true, tokenId, txHash: tx.hash});
