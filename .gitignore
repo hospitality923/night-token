@@ -10,3 +10,23 @@ ssl/
 *.key
 *.crt
 *.0221
+# Dated/scratch directories
+010126/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.vscode/
+.idea/
+Thumbs.db
+
+# Common test/scratch patterns
+.tmp/
+tmp/
