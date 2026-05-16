@@ -79,8 +79,8 @@
             <p style="color: #718096; font-size: 14px; margin: 0;">请使用您的管理账号进行安全登录</p>
         </div>
         <div style="text-align: left;">
-            <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">电子邮箱</label>
-            <input type="email" id="email" class="modern-input" placeholder="例如: admin@hotel.com, admin@travel.com">
+            <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">电子邮箱/用户名</label>
+            <input type="email" id="email" class="modern-input" placeholder="例如: admin@hotel.com, admin@travel.com, admin@supplier.com">
             
             <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block; margin-top: 15px;">登录密码</label>
             <input type="password" id="password" class="modern-input" placeholder="••••••••" onkeypress="if(event.key === 'Enter') login()">
@@ -122,17 +122,18 @@
         <div class="card">
             <h3>用户账号管理 (User Management)</h3>
             <div class="row">
-                <input type="email" id="admin_new_user_email" placeholder="电子邮箱" class="col">
+                <input type="email" id="admin_new_user_email" placeholder="电子邮箱/用户名" class="col">
                 <input type="password" id="admin_new_user_pwd" placeholder="密码" class="col">
                 <select id="admin_new_user_role" class="col">
                     <option value="hotel">酒店方 (资产发行方)</option>
                     <option value="ta">旅行社 (分销商)</option>
+                    <option value="supplier">供应商 (分销商)</option>
                     <option value="admin">平台管理方</option>
                 </select>
                 <button id="btn_create_user" onclick="adminCreateUser()" class="btn-green" style="width:auto; margin: 5px 0 15px; padding: 10px 20px; box-sizing: border-box;">新建用户</button>
             </div>
             <table class="status-table">
-                <thead><tr><th>ID</th><th>邮箱</th><th>角色</th><th>钱包地址</th><th>操作</th></tr></thead>
+                <thead><tr><th>ID</th><th>邮箱/用户名</th><th>角色</th><th>钱包地址</th><th>操作</th></tr></thead>
                 <tbody id="adminUserList"></tbody>
             </table>
         </div>
@@ -194,7 +195,7 @@
             <p style="font-size:12px; color:#666;">流程: 存入托管 -> 等待付款 -> 确认释放</p>
             <div class="row">
                 <input type="number" id="dist_id" placeholder="凭证 ID" class="col">
-                <input type="text" id="dist_buyer" placeholder="分销商邮箱 (TA1)" class="col">
+                <input type="text" id="dist_buyer" placeholder="分销商邮箱/用户名 (TA1)" class="col">
                 <input type="number" id="dist_amt" placeholder="数量" class="col" min="1">
             </div>
             <button id="btn_escrow_hotel" onclick="createEscrow('hotel')" class="btn-green">发起托管 (存入资产)</button>
@@ -237,7 +238,7 @@
             <h3>二级分销 (转售)</h3>
             <div class="row">
                 <input type="number" id="ta_sell_id" placeholder="凭证 ID" class="col">
-                <input type="text" id="ta_sell_buyer" placeholder="买家邮箱 (TA2)" class="col">
+                <input type="text" id="ta_sell_buyer" placeholder="买家邮箱/用户名 (TA2)" class="col">
                 <input type="number" id="ta_sell_amt" placeholder="数量" class="col" min="1">
             </div>
             <button id="btn_hw_trigger" onclick="triggerHwCheck()">发起资产转让 (需硬件签名)</button>
@@ -301,8 +302,8 @@
             <h3 style="margin-top:10px;">编辑用户 (Edit User)</h3>
             <input type="hidden" id="edit_user_id">
             <div style="text-align: left;">
-                <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">电子邮箱</label>
-                <input type="email" id="edit_user_email" class="modern-input" placeholder="电子邮箱" style="width:100%; margin-bottom:15px; padding: 10px;">
+                <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">电子邮箱/用户名</label>
+                <input type="email" id="edit_user_email" class="modern-input" placeholder="电子邮箱/用户名" style="width:100%; margin-bottom:15px; padding: 10px;">
                 
                 <label style="font-size: 13px; color: #4a5568; font-weight: 600; margin-bottom: 6px; display: block;">新密码 (留空则不修改)</label>
                 <input type="password" id="edit_user_pwd" class="modern-input" placeholder="••••••••" style="width:100%; margin-bottom:15px; padding: 10px;">
@@ -311,6 +312,7 @@
                 <select id="edit_user_role" class="modern-input" style="width:100%; margin-bottom:25px; padding: 10px;">
                     <option value="hotel">酒店方 (资产发行方)</option>
                     <option value="ta">旅行社 (分销商)</option>
+                    <option value="supplier">供应商 (分销商)</option>
                     <option value="admin">平台管理方</option>
                 </select>
             </div>

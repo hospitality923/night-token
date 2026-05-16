@@ -139,7 +139,7 @@ function setupDashboard() {
     document.getElementById('userEmail').innerText = currentUser.email;
     document.getElementById('userAddr').innerText = currentUser.wallet_address || "";
     
-    let roleName = currentUser.role === 'hotel' ? "酒店方" : (currentUser.role === 'ta' ? "旅行社" : "平台管理方");
+    let roleName = currentUser.role === 'hotel' ? "酒店方" : (currentUser.role === 'ta' ? "旅行社" : (currentUser.role === 'supplier' ? "供应商" : "平台管理方"));
     document.getElementById('userRole').innerText = roleName;
 
     document.getElementById('hotelView').classList.add('hidden');
@@ -147,7 +147,7 @@ function setupDashboard() {
     document.getElementById('adminView').classList.add('hidden');
 
     if(currentUser.role === 'hotel') document.getElementById('hotelView').classList.remove('hidden');
-    else if (currentUser.role === 'ta') {
+    else if (currentUser.role === 'ta' || currentUser.role === 'supplier') {
         document.getElementById('taView').classList.remove('hidden');
         document.getElementById('ta_book_id').oninput = calculateCost;
     }
@@ -172,7 +172,7 @@ async function refreshState() {
             renderHotelInventory(inventory || [], trades || [], bookings || [], 'hotelInventoryList');
             renderTrades(trades || []);
             renderBookings(bookings || []);
-        } else if (currentUser.role === 'ta') {
+        } else if (currentUser.role === 'ta' || currentUser.role === 'supplier') {
             renderTAInventory(inventory || [], trades || [], bookings || []);
             renderTrades(trades || []);
             renderBookings(bookings || []);
@@ -214,7 +214,7 @@ function renderDashboardCharts(inventory, trades, bookings, stats) {
             
         drawChart('hotelChart', 'bar', ['发行量', '托管中', '已分销', '已核销'], [totalTokens, myLocked, mySold, myRedeemed], '资产漏斗');
 
-    } else if (currentUser.role === 'ta') {
+    } else if (currentUser.role === 'ta' || currentUser.role === 'supplier') {
         let myHeld = 0; 
         let mySold = 0; 
         let myIncoming = 0; 
